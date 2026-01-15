@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { Upload, FileSpreadsheet, AlertCircle, CheckCircle, Database } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { read, utils } from 'xlsx';
 import { Transaction, BudgetCategory, InvestmentHolding, FinancialGoal } from '../types';
 
 interface ParsedData {
@@ -26,13 +26,13 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onDataLoaded, onLoad
 
     try {
       const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
+      const workbook = read(data);
 
       // Parse Sheets
-      const transactions: any[] = XLSX.utils.sheet_to_json(workbook.Sheets['Transactions'] || {});
-      const budgets: any[] = XLSX.utils.sheet_to_json(workbook.Sheets['Budget'] || {});
-      const holdings: any[] = XLSX.utils.sheet_to_json(workbook.Sheets['Investments'] || {});
-      const goals: any[] = XLSX.utils.sheet_to_json(workbook.Sheets['Goals'] || {});
+      const transactions: any[] = utils.sheet_to_json(workbook.Sheets['Transactions'] || {});
+      const budgets: any[] = utils.sheet_to_json(workbook.Sheets['Budget'] || {});
+      const holdings: any[] = utils.sheet_to_json(workbook.Sheets['Investments'] || {});
+      const goals: any[] = utils.sheet_to_json(workbook.Sheets['Goals'] || {});
 
       if (transactions.length === 0 && budgets.length === 0) {
         throw new Error("Could not find data. Please ensure sheets are named 'Transactions', 'Budget', 'Investments', and 'Goals'.");
@@ -41,21 +41,21 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onDataLoaded, onLoad
       // Basic formatting/validation mapping
       const formattedTransactions: Transaction[] = transactions.map((t, i) => ({
         id: `tx-${i}`,
-        date: t.date || new Date().toISOString().split('T')[0],
+        date: t.date ? String(t.date) : new Date().toISOString().split('T')[0],
         description: t.description || 'Unknown',
         category: t.category || 'Misc',
         account: t.account || 'Cash',
         amount: Number(t.amount) || 0,
         type: (t.type === 'income' || t.type === 'expense') ? t.type : 'expense',
         status: t.status || 'posted',
-        isRecurring: t.isRecurring === true || t.isRecurring === 'true'
+        isRecurring: t.isRecurring === true || String(t.isRecurring).toLowerCase() === 'true'
       }));
 
       const formattedBudgets: BudgetCategory[] = budgets.map(b => ({
         category: b.category || 'Misc',
         budget: Number(b.budget) || 0,
         actual: Number(b.actual) || 0,
-        trend: 0 // Calculate dynamically if needed, keeping simple for import
+        trend: 0 
       }));
 
       const formattedHoldings: InvestmentHolding[] = holdings.map(h => ({
@@ -64,8 +64,9 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onDataLoaded, onLoad
         shares: Number(h.shares) || 0,
         costBasis: Number(h.costBasis) || 0,
         currentPrice: Number(h.currentPrice) || 0,
-        allocation: 0 // Will need to calculate based on total
+        allocation: 0
       }));
+      
       // Recalculate allocation
       const totalPortfolioValue = formattedHoldings.reduce((sum, h) => sum + (h.shares * h.currentPrice), 0);
       formattedHoldings.forEach(h => {
@@ -78,7 +79,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onDataLoaded, onLoad
         targetAmount: Number(g.targetAmount) || 0,
         currentAmount: Number(g.currentAmount) || 0,
         monthlyContribution: Number(g.monthlyContribution) || 0,
-        targetDate: g.targetDate || '2025-01-01',
+        targetDate: g.targetDate ? String(g.targetDate) : '2025-01-01',
         priority: g.priority || 'medium'
       }));
 
